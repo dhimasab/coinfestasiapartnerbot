@@ -35,6 +35,8 @@ def forward_post_to_groups(message):
 def auto_add_group(event):
     if event.new_chat_member.status in ['member', 'administrator']:
         chat_id = event.chat.id
+        chat_name = event.chat.title or 'Unnamed Group'
+
         try:
             with open('groups.json', 'r') as f:
                 group_ids = json.load(f)
@@ -45,11 +47,10 @@ def auto_add_group(event):
             group_ids.append(chat_id)
             with open('groups.json', 'w') as f:
                 json.dump(group_ids, f)
-            print(f"🆕 Grup baru ditambahkan ke daftar: {chat_id}")
+            print(f"🆕 Grup baru ditambahkan ke daftar: {chat_name} (ID: {chat_id})")
         else:
-            print(f"ℹ️ Grup {chat_id} sudah terdaftar.")
+            print(f"ℹ️ Grup {chat_name} (ID: {chat_id}) sudah terdaftar.")
 
 # Mulai polling
 print("🤖 Bot aktif... Menunggu pesan dari channel atau event grup...")
 bot.infinity_polling()
-
