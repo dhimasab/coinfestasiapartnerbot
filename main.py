@@ -57,5 +57,8 @@ def auto_add_group(event):
 
             # NANTI DI SINI kamu bisa tambahkan logika untuk nulis ke Google Sheets
         else:
-            print(f"ℹ️ Grup {chat
+            print(f"ℹ️ Grup {chat_name} (ID: {chat_id}) sudah terdaftar.")
 
+# Mulai polling
+print("🤖 Bot aktif... Menunggu pesan dari channel atau event grup...")
+bot.infinity_polling()
