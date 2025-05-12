@@ -6,6 +6,12 @@ from dotenv import load_dotenv
 # Load env dari file .env
 load_dotenv()
 
+# ✅ Buat file credentials.json kalau ada GOOGLE_CREDS_RAW dari Railway
+if "GOOGLE_CREDS_RAW" in os.environ:
+    with open("credentials.json", "w") as f:
+        json.dump(json.loads(os.environ["GOOGLE_CREDS_RAW"]), f)
+    os.environ["GOOGLE_APPLICATION_CREDENTIALS"] = "credentials.json"
+
 BOT_TOKEN = os.getenv("BOT_TOKEN")
 
 # Validasi token
@@ -48,9 +54,8 @@ def auto_add_group(event):
             with open('groups.json', 'w') as f:
                 json.dump(group_ids, f)
             print(f"🆕 Grup baru ditambahkan ke daftar: {chat_name} (ID: {chat_id})")
-        else:
-            print(f"ℹ️ Grup {chat_name} (ID: {chat_id}) sudah terdaftar.")
 
-# Mulai polling
-print("🤖 Bot aktif... Menunggu pesan dari channel atau event grup...")
-bot.infinity_polling()
+            # NANTI DI SINI kamu bisa tambahkan logika untuk nulis ke Google Sheets
+        else:
+            print(f"ℹ️ Grup {chat
+
