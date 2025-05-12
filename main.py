@@ -80,5 +80,9 @@ def auto_add_group(event):
         else:
             print(f"ℹ️ Grup sudah ada: {chat_name} (ID: {chat_id})")
 
+@bot.channel_post_handler(content_types=['text'])
+def get_channel_id(message):
+    print(f"🆔 Channel ID: {message.chat.id}")
+
 print("🤖 Bot aktif... Menunggu pesan dari channel...")
 bot.infinity_polling()
