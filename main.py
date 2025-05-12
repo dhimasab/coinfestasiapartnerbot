@@ -2,22 +2,38 @@ import telebot
 import json
 import os
 from dotenv import load_dotenv
+import gspread
+from datetime import datetime
+from oauth2client.service_account import ServiceAccountCredentials
 
-# Load env dari file .env
+# Load environment variables
 load_dotenv()
 
-# ✅ Buat file credentials.json kalau ada GOOGLE_CREDS_RAW dari Railway
-if "GOOGLE_CREDS_RAW" in os.environ:
-    with open("credentials.json", "w") as f:
-        json.dump(json.loads(os.environ["GOOGLE_CREDS_RAW"]), f)
-    os.environ["GOOGLE_APPLICATION_CREDENTIALS"] = "credentials.json"
-
 BOT_TOKEN = os.getenv("BOT_TOKEN")
+SHEET_ID = os.getenv("SHEET_ID")
 
-# Validasi token
 if not BOT_TOKEN:
     raise ValueError("BOT_TOKEN tidak ditemukan di environment variables!")
+if not SHEET_ID:
+    raise ValueError("SHEET_ID tidak ditemukan di environment variables!")
 
+# Setup Google Sheets access
+scope = ["https://spreadsheets.google.com/feeds", "https://www.googleapis.com/auth/drive"]
+creds_path = "/tmp/google-creds.json"
+
+# Railway injects GOOGLE_CREDS_RAW sebagai env string
+google_creds_raw = os.getenv("GOOGLE_CREDS_RAW")
+if not google_creds_raw:
+    raise ValueError("GOOGLE_CREDS_RAW tidak ditemukan di environment variables!")
+
+with open(creds_path, "w") as f:
+    f.write(google_creds_raw)
+
+creds = ServiceAccountCredentials.from_json_keyfile_name(creds_path, scope)
+client = gspread.authorize(creds)
+sheet = client.open_by_key(SHEET_ID).sheet1
+
+# Init bot
 bot = telebot.TeleBot(BOT_TOKEN)
 
 # ✅ Handler untuk menerima postingan dari channel
@@ -42,6 +58,7 @@ def auto_add_group(event):
     if event.new_chat_member.status in ['member', 'administrator']:
         chat_id = event.chat.id
         chat_name = event.chat.title or 'Unnamed Group'
+        timestamp = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
 
         try:
             with open('groups.json', 'r') as f:
@@ -50,15 +67,17 @@ def auto_add_group(event):
             group_ids = []
 
         if chat_id not in group_ids:
+            # Tambahkan ke JSON lokal
             group_ids.append(chat_id)
             with open('groups.json', 'w') as f:
                 json.dump(group_ids, f)
-            print(f"🆕 Grup baru ditambahkan ke daftar: {chat_name} (ID: {chat_id})")
 
-            # NANTI DI SINI kamu bisa tambahkan logika untuk nulis ke Google Sheets
+            # Tambahkan ke Google Sheet
+            sheet.append_row([str(chat_id), chat_name, timestamp])
+            print(f"🆕 Grup baru ditambahkan: {chat_name} (ID: {chat_id})")
         else:
-            print(f"ℹ️ Grup {chat_name} (ID: {chat_id}) sudah terdaftar.")
+            print(f"ℹ️ Grup sudah ada: {chat_name} (ID: {chat_id})")
 
-# Mulai polling
+# Start bot
 print("🤖 Bot aktif... Menunggu pesan dari channel atau event grup...")
 bot.infinity_polling()
