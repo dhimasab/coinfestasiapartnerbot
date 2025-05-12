@@ -12,24 +12,27 @@ load_dotenv()
 BOT_TOKEN = os.getenv("BOT_TOKEN")
 SHEET_ID = os.getenv("SHEET_ID")
 GOOGLE_CREDS_RAW = os.getenv("GOOGLE_CREDS_RAW")
+SOURCE_CHANNEL_ID = int(os.getenv("SOURCE_CHANNEL_ID", "0"))  # ID channel yang diizinkan
 
-if not all([BOT_TOKEN, SHEET_ID, GOOGLE_CREDS_RAW]):
+# Validasi env
+if not all([BOT_TOKEN, SHEET_ID, GOOGLE_CREDS_RAW, SOURCE_CHANNEL_ID]):
     raise ValueError("Missing one or more required environment variables.")
 
-# Write Google credentials to a temp file
+# Simpan kredensial Google ke file sementara
 creds_path = "/tmp/google-creds.json"
 with open(creds_path, "w") as f:
     f.write(GOOGLE_CREDS_RAW)
 
-# Setup Google Sheets client
+# Setup akses Google Sheet
 scope = ["https://spreadsheets.google.com/feeds", "https://www.googleapis.com/auth/drive"]
 creds = ServiceAccountCredentials.from_json_keyfile_name(creds_path, scope)
 client = gspread.authorize(creds)
 sheet = client.open_by_key(SHEET_ID).sheet1
 
+# Inisiasi bot
 bot = telebot.TeleBot(BOT_TOKEN)
 
-# Get group list from sheet
+# Ambil data grup dari sheet
 def get_target_groups():
     records = sheet.get_all_records()
     return [
@@ -40,15 +43,17 @@ def get_target_groups():
         for row in records if row.get("Group ID")
     ]
 
-# ✅ Reposting semua format konten dari channel ke grup
+# Kirim ulang pesan dari channel (jika channel-nya terdaftar)
 @bot.channel_post_handler(content_types=['text', 'photo', 'video', 'document'])
 def repost_message(message):
-    groups = get_target_groups()
+    if message.chat.id != SOURCE_CHANNEL_ID:
+        print(f"🚫 Channel tidak diizinkan: {message.chat.id}")
+        return
 
+    groups = get_target_groups()
     for group in groups:
         group_id = group["id"]
         mention = group["mention"]
-
         try:
             if message.content_type == 'text':
                 bot.send_message(group_id, message.text, entities=message.entities)
@@ -59,7 +64,7 @@ def repost_message(message):
             elif message.content_type == 'document':
                 bot.send_document(group_id, message.document.file_id, caption=message.caption, caption_entities=message.caption_entities)
 
-            print(f"✅ Reposted ke {group_id} ({message.content_type})")
+            print(f"✅ Berhasil kirim ke {group_id} ({message.content_type})")
 
             if mention:
                 bot.send_message(group_id, mention)
@@ -67,7 +72,7 @@ def repost_message(message):
         except Exception as e:
             print(f"❌ Gagal kirim ke {group_id}: {e}")
 
-# ✅ Tambahkan grup ke sheet saat bot dimasukkan ke grup
+# Tambahkan grup ke Google Sheet saat bot dimasukkan
 @bot.my_chat_member_handler()
 def auto_add_group(event):
     if event.new_chat_member.status in ['member', 'administrator']:
@@ -82,7 +87,9 @@ def auto_add_group(event):
             sheet.append_row([str(chat_id), chat_name, "", timestamp])
             print(f"🆕 Grup baru ditambahkan: {chat_name} (ID: {chat_id})")
         else:
-            print(f"ℹ️ Grup sudah ada: {chat_name} (ID: {chat_id})")
+            print(f"ℹ️ Grup sudah terdaftar: {chat_name} (ID: {chat_id})")
 
-print("🤖 Bot aktif... Menunggu pesan dari channel...")
+# Start polling
+print("🤖 Bot aktif... Menunggu pesan dari channel yang diizinkan...")
 bot.infinity_polling()
+
