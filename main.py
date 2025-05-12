@@ -1,85 +1,78 @@
+
 import telebot
 import json
 import os
 from dotenv import load_dotenv
 import gspread
-from datetime import datetime
 from oauth2client.service_account import ServiceAccountCredentials
+from datetime import datetime
 
 # Load environment variables
 load_dotenv()
 
 BOT_TOKEN = os.getenv("BOT_TOKEN")
 SHEET_ID = os.getenv("SHEET_ID")
-GOOGLE_CREDS_RAW = os.getenv("GOOGLE_CREDS_RAW")
 
 if not BOT_TOKEN:
     raise ValueError("BOT_TOKEN tidak ditemukan di environment variables!")
 if not SHEET_ID:
     raise ValueError("SHEET_ID tidak ditemukan di environment variables!")
-if not GOOGLE_CREDS_RAW:
-    raise ValueError("GOOGLE_CREDS_RAW tidak ditemukan di environment variables!")
 
 # Setup Google Sheets access
 scope = ["https://spreadsheets.google.com/feeds", "https://www.googleapis.com/auth/drive"]
 creds_path = "/tmp/google-creds.json"
+
+google_creds_raw = os.getenv("GOOGLE_CREDS_RAW")
+if not google_creds_raw:
+    raise ValueError("GOOGLE_CREDS_RAW tidak ditemukan di environment variables!")
+
 with open(creds_path, "w") as f:
-    f.write(GOOGLE_CREDS_RAW)
+    f.write(google_creds_raw)
 
 creds = ServiceAccountCredentials.from_json_keyfile_name(creds_path, scope)
 client = gspread.authorize(creds)
 sheet = client.open_by_key(SHEET_ID).sheet1
 
-# Inisialisasi bot
-bot = telebot.TeleBot(BOT_TOKEN, parse_mode="HTML")
+bot = telebot.TeleBot(BOT_TOKEN)
 
-def get_groups_data():
+def get_groups_from_sheet():
     records = sheet.get_all_records()
-    group_data = []
-    for row in records:
-        group_id = str(row.get("Group ID", "")).strip()
-        mentions = row.get("Mentions", "").strip()
-        if group_id:
-            group_data.append({
-                "group_id": group_id,
-                "mentions": mentions
-            })
-    return group_data
+    return [
+        {
+            "id": int(row["Group ID"]),
+            "mention": row.get("Mentions", "").strip()
+        }
+        for row in records if row.get("Group ID")
+    ]
 
-@bot.channel_post_handler(content_types=["text", "photo", "video", "document", "sticker"])
-def repost_to_groups(message):
-    groups = get_groups_data()
-
+@bot.channel_post_handler(content_types=['text', 'photo', 'video', 'document', 'sticker'])
+def forward_post_to_groups(message):
+    groups = get_groups_from_sheet()
     for group in groups:
-        group_id = group["group_id"]
-        mentions = group["mentions"]
-
+        group_id = group["id"]
+        mention_text = group["mention"]
         try:
-            if message.text:
-                bot.send_message(group_id, message.text)
-            elif message.caption and message.photo:
-                file_id = message.photo[-1].file_id
-                bot.send_photo(group_id, file_id, caption=message.caption)
-            elif message.caption and message.video:
-                file_id = message.video.file_id
-                bot.send_video(group_id, file_id, caption=message.caption)
-            elif message.caption and message.document:
-                file_id = message.document.file_id
-                bot.send_document(group_id, file_id, caption=message.caption)
-            elif message.sticker:
-                bot.send_sticker(group_id, message.sticker.file_id)
-            else:
-                print(f"⚠️ Tidak dikenali: {group_id}")
-                continue
-
-            print(f"✅ Repost ke group {group_id}")
-
-            if mentions:
-                bot.send_message(group_id, mentions)
-                print(f"💬 Mention terkirim ke group {group_id}: {mentions}")
-
+            bot.forward_message(chat_id=group_id, from_chat_id=message.chat.id, message_id=message.message_id)
+            print(f"✅ Berhasil forward ke group {group_id}")
+            if mention_text:
+                bot.send_message(group_id, mention_text)
+                print(f"💬 Mention terkirim ke group {group_id}: {mention_text}")
         except Exception as e:
-            print(f"❌ Gagal kirim ke group {group_id}: {e}")
+            print(f"❌ Gagal kirim ke {group_id}: {e}")
 
-print("🤖 Bot aktif... Menunggu pesan dari channel...")
+@bot.my_chat_member_handler()
+def auto_add_group(event):
+    if event.new_chat_member.status in ['member', 'administrator']:
+        chat_id = event.chat.id
+        chat_name = event.chat.title or 'Unnamed Group'
+        timestamp = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+
+        existing_ids = [row["Group ID"] for row in sheet.get_all_records()]
+        if str(chat_id) not in existing_ids:
+            sheet.append_row([str(chat_id), chat_name, "", timestamp])
+            print(f"🆕 Grup baru ditambahkan: {chat_name} (ID: {chat_id})")
+        else:
+            print(f"ℹ️ Grup sudah ada: {chat_name} (ID: {chat_id})")
+
+print("🤖 Bot aktif... Menunggu pesan dari channel atau event grup...")
 bot.infinity_polling()
