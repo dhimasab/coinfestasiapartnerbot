@@ -31,71 +31,46 @@ creds = ServiceAccountCredentials.from_json_keyfile_name(creds_path, scope)
 client = gspread.authorize(creds)
 sheet = client.open_by_key(SHEET_ID).sheet1
 
-# Init bot
+# Inisialisasi bot
 bot = telebot.TeleBot(BOT_TOKEN)
 
-# Fungsi cek apakah chat_id sudah ada di sheet
-def is_group_recorded(chat_id):
-    try:
-        ids = sheet.col_values(1)
-        return str(chat_id) in ids
-    except:
-        return False
-
-# Fungsi menambahkan grup ke sheet
-def add_group_to_sheet(chat_id, chat_name):
-    timestamp = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
-    sheet.append_row([str(chat_id), chat_name, timestamp])
-    print(f"📝 Grup ditambahkan ke Google Sheet: {chat_name} ({chat_id})")
-
-# ✅ Handler untuk menerima postingan dari channel
+# ✅ Handler untuk menerima postingan dari channel dan forward ke semua grup di Google Sheet
 @bot.channel_post_handler(content_types=['text', 'photo', 'video', 'document', 'sticker'])
 def forward_post_to_groups(message):
     try:
-        with open('groups.json', 'r') as f:
-            group_ids = json.load(f)
-    except:
-        group_ids = []
+        group_ids = sheet.col_values(1)[1:]  # Skip header
+    except Exception as e:
+        print(f"❌ Gagal mengambil data dari Google Sheet: {e}")
+        return
 
     for group_id in group_ids:
         try:
-            bot.forward_message(chat_id=group_id, from_chat_id=message.chat.id, message_id=message.message_id)
+            group_id_int = int(group_id)
+            bot.forward_message(chat_id=group_id_int, from_chat_id=message.chat.id, message_id=message.message_id)
             print(f"✅ Berhasil forward ke group {group_id}")
-
-            # Cek dan simpan ke Google Sheet jika belum ada
-            try:
-                chat_info = bot.get_chat(group_id)
-                chat_title = chat_info.title or 'Unknown Group'
-                if not is_group_recorded(group_id):
-                    add_group_to_sheet(group_id, chat_title)
-            except Exception as e:
-                print(f"❗ Gagal ambil info grup: {e}")
-
         except Exception as e:
             print(f"❌ Gagal kirim ke {group_id}: {e}")
 
-# ✅ Handler saat bot ditambahkan ke grup
+# ✅ Handler saat bot ditambahkan ke grup baru
 @bot.my_chat_member_handler()
 def auto_add_group(event):
     if event.new_chat_member.status in ['member', 'administrator']:
-        chat_id = event.chat.id
-        chat_name = event.chat.title or 'Unnamed Group'
+        chat_id = str(event.chat.id)
+        chat_name = event.chat.title or "Unnamed Group"
         timestamp = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
 
         try:
-            with open('groups.json', 'r') as f:
-                group_ids = json.load(f)
-        except:
-            group_ids = []
+            existing_ids = sheet.col_values(1)
+        except Exception as e:
+            print(f"❌ Gagal membaca sheet: {e}")
+            existing_ids = []
 
-        if chat_id not in group_ids:
-            group_ids.append(chat_id)
-            with open('groups.json', 'w') as f:
-                json.dump(group_ids, f)
-            print(f"🆕 Grup baru ditambahkan: {chat_name} (ID: {chat_id})")
-
-            if not is_group_recorded(chat_id):
-                add_group_to_sheet(chat_id, chat_name)
+        if chat_id not in existing_ids:
+            try:
+                sheet.append_row([chat_id, chat_name, timestamp])
+                print(f"🆕 Grup baru ditambahkan: {chat_name} (ID: {chat_id})")
+            except Exception as e:
+                print(f"❌ Gagal menulis ke Google Sheet: {e}")
         else:
             print(f"ℹ️ Grup sudah ada: {chat_name} (ID: {chat_id})")
 
