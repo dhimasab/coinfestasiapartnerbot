@@ -1,4 +1,3 @@
-
 import telebot
 import json
 import os
@@ -12,27 +11,25 @@ load_dotenv()
 
 BOT_TOKEN = os.getenv("BOT_TOKEN")
 SHEET_ID = os.getenv("SHEET_ID")
+GOOGLE_CREDS_RAW = os.getenv("GOOGLE_CREDS_RAW")
 
 if not BOT_TOKEN:
     raise ValueError("BOT_TOKEN tidak ditemukan di environment variables!")
 if not SHEET_ID:
     raise ValueError("SHEET_ID tidak ditemukan di environment variables!")
+if not GOOGLE_CREDS_RAW:
+    raise ValueError("GOOGLE_CREDS_RAW tidak ditemukan di environment variables!")
 
 # Setup Google Sheets access
 scope = ["https://spreadsheets.google.com/feeds", "https://www.googleapis.com/auth/drive"]
 creds_path = "/tmp/google-creds.json"
-
-google_creds_raw = os.getenv("GOOGLE_CREDS_RAW")
-if not google_creds_raw:
-    raise ValueError("GOOGLE_CREDS_RAW tidak ditemukan di environment variables!")
-
 with open(creds_path, "w") as f:
-    f.write(google_creds_raw)
-
+    f.write(GOOGLE_CREDS_RAW)
 creds = ServiceAccountCredentials.from_json_keyfile_name(creds_path, scope)
 client = gspread.authorize(creds)
 sheet = client.open_by_key(SHEET_ID).sheet1
 
+# Inisialisasi bot
 bot = telebot.TeleBot(BOT_TOKEN)
 
 def get_groups_from_sheet():
@@ -46,14 +43,29 @@ def get_groups_from_sheet():
     ]
 
 @bot.channel_post_handler(content_types=['text', 'photo', 'video', 'document', 'sticker'])
-def forward_post_to_groups(message):
+def repost_to_groups(message):
     groups = get_groups_from_sheet()
     for group in groups:
         group_id = group["id"]
         mention_text = group["mention"]
         try:
-            bot.forward_message(chat_id=group_id, from_chat_id=message.chat.id, message_id=message.message_id)
-            print(f"✅ Berhasil forward ke group {group_id}")
+            if message.text:
+                bot.send_message(group_id, message.text)
+            elif message.photo:
+                file_id = message.photo[-1].file_id
+                caption = message.caption or ""
+                bot.send_photo(group_id, file_id, caption=caption)
+            elif message.video:
+                caption = message.caption or ""
+                bot.send_video(group_id, message.video.file_id, caption=caption)
+            elif message.document:
+                caption = message.caption or ""
+                bot.send_document(group_id, message.document.file_id, caption=caption)
+            elif message.sticker:
+                bot.send_sticker(group_id, message.sticker.file_id)
+
+            print(f"✅ Konten berhasil dikirim ke {group_id}")
+
             if mention_text:
                 bot.send_message(group_id, mention_text)
                 print(f"💬 Mention terkirim ke group {group_id}: {mention_text}")
