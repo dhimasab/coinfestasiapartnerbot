@@ -43,7 +43,6 @@ def get_target_groups():
 # ✅ Reposting semua format konten dari channel ke grup
 @bot.channel_post_handler(content_types=['text', 'photo', 'video', 'document'])
 def repost_message(message):
-    print(f"🆔 Channel ID Detected: {message.chat.id}")  # Logging ID channel
     groups = get_target_groups()
 
     for group in groups:
