@@ -85,4 +85,4 @@ Bot Telegram otomatis untuk me-*blast* konten dari 1 channel tertentu ke banyak 
 
 ## 🙌 Credits
 
-Dibuat dan dikustomisasi untuk **Coinfest Asia Partner Operations** oleh tim Coinvestasi 🚀
+Dibuat dan dikustomisasi oleh Dhimas untuk **Coinfest Asia Partnership** 🚀
