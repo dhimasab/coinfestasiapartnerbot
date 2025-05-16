@@ -32,7 +32,7 @@ sheet = client.open_by_key(SHEET_ID).sheet1
 # Inisiasi bot
 bot = telebot.TeleBot(BOT_TOKEN)
 
-# Ambil data grup dari sheet
+# Ambil data grup dari sheet (hanya yang statusnya "Aktif")
 def get_target_groups():
     records = sheet.get_all_records()
     return [
@@ -40,7 +40,8 @@ def get_target_groups():
             "id": int(row["Group ID"]),
             "mention": row.get("Mentions", "").strip()
         }
-        for row in records if row.get("Group ID")
+        for row in records
+        if row.get("Group ID") and row.get("Status", "").strip().lower() == "aktif"
     ]
 
 # Kirim ulang pesan dari channel (jika channel-nya terdaftar)
@@ -84,7 +85,7 @@ def auto_add_group(event):
         existing_ids = [str(row["Group ID"]) for row in existing]
 
         if str(chat_id) not in existing_ids:
-            sheet.append_row([str(chat_id), chat_name, "", timestamp])
+            sheet.append_row([str(chat_id), chat_name, "", timestamp, "Aktif"])
             print(f"🆕 Grup baru ditambahkan: {chat_name} (ID: {chat_id})")
         else:
             print(f"ℹ️ Grup sudah terdaftar: {chat_name} (ID: {chat_id})")
@@ -92,4 +93,3 @@ def auto_add_group(event):
 # Start polling
 print("🤖 Bot aktif... Menunggu pesan dari channel yang diizinkan...")
 bot.infinity_polling()
-
