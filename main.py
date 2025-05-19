@@ -97,7 +97,6 @@ def debug_forward_info(message):
         print("Forwarded from:", message.forward_from_chat.id)
         print("Message ID:", message.forward_from_message_id)
 
-
 # Start polling
 print("🤖 Bot aktif... Menunggu pesan dari channel yang diizinkan...")
 bot.infinity_polling()
