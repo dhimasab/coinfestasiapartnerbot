@@ -90,6 +90,14 @@ def auto_add_group(event):
         else:
             print(f"ℹ️ Grup sudah terdaftar: {chat_name} (ID: {chat_id})")
 
+# Mencari id message dari pesan yang diforward ke bot
+@bot.message_handler(func=lambda m: True, content_types=['text', 'photo', 'video', 'document'])
+def debug_forward_info(message):
+    if message.forward_from_chat:
+        print("Forwarded from:", message.forward_from_chat.id)
+        print("Message ID:", message.forward_from_message_id)
+
+
 # Start polling
 print("🤖 Bot aktif... Menunggu pesan dari channel yang diizinkan...")
 bot.infinity_polling()
