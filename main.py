@@ -90,32 +90,12 @@ def auto_add_group(event):
         else:
             print(f"ℹ️ Grup sudah terdaftar: {chat_name} (ID: {chat_id})")
 
-# Response /welcome hasil chat yg dikirim ke bot
-@bot.message_handler(commands=['welcome'])
-def send_welcome_message(message):
-    try:
-        group_id = message.chat.id
-        print(f"🚀 Mengirim pesan welcome ke grup {group_id}")
-
-        # Forward pesan dari channel ke grup
-        bot.forward_message(
-            chat_id=group_id,
-            from_chat_id=int(os.getenv("WELCOME_CHAT_ID")),
-            message_id=int(os.getenv("WELCOME_MESSAGE_ID"))
-        )
-
-        # Ambil mention dari Google Sheet
-        records = sheet.get_all_records()
-        for row in records:
-            if str(row["Group ID"]) == str(group_id):
-                mention = row.get("Mentions", "").strip()
-                if mention:
-                    bot.send_message(group_id, mention)
-                    print(f"✅ Mention dikirim ke {group_id}: {mention}")
-                break
-
-    except Exception as e:
-        print(f"❌ Gagal mengirim pesan welcome: {e}")
+# Cari message id
+@bot.message_handler(func=lambda m: True, content_types=['text', 'photo', 'video', 'document'])
+def debug_forward_info(message):
+    if message.forward_from_chat:
+        print("Forwarded from:", message.forward_from_chat.id)
+        print("Message ID:", message.forward_from_message_id)
 
 # Start polling
 print("🤖 Bot aktif... Menunggu pesan dari channel yang diizinkan...")
