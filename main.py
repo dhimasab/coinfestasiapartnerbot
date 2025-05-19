@@ -117,6 +117,16 @@ def send_welcome_message(message):
     except Exception as e:
         print(f"❌ Gagal mengirim pesan welcome: {e}")
 
+# kirim logs ke sheet "Logs"
+def log_event(event_type, group_id=None, group_name=None, detail=""):
+    try:
+        log_sheet = client.open_by_key(SHEET_ID).worksheet("Logs")
+        timestamp = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+        log_sheet.append_row([timestamp, event_type, group_id or "", group_name or "", detail])
+        print(f"📝 Logged: {event_type} | {group_id} | {detail}")
+    except Exception as e:
+        print(f"❌ Gagal logging: {e}")
+
 # Start polling
 print("🤖 Bot aktif... Menunggu pesan dari channel yang diizinkan...")
 bot.infinity_polling()
