@@ -82,15 +82,23 @@ def auto_add_group(event):
         timestamp = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
 
         existing = sheet.get_all_records()
-        existing_ids = [str(row["Group ID"]) for row in existing]
+        updated = False
 
-        if str(chat_id) not in existing_ids:
+        for idx, row in enumerate(existing, start=2):  # start=2 karena header di baris 1
+            if row.get("Group Name", "").strip() == chat_name.strip():
+                sheet.update_cell(idx, 1, str(chat_id))  # Update Group ID (kolom A)
+                sheet.update_cell(idx, 4, timestamp)     # Update timestamp (kolom D)
+                print(f"🔁 Group ID diperbarui: {chat_name} (ID baru: {chat_id})")
+                log_event("Update Group ID", group_id=chat_id, group_name=chat_name, detail="Group ID updated due to name match")
+                updated = True
+                break
+
+        if not updated:
             sheet.append_row([str(chat_id), chat_name, "", timestamp, "Aktif"])
             print(f"🆕 Grup baru ditambahkan: {chat_name} (ID: {chat_id})")
-        else:
-            print(f"ℹ️ Grup sudah terdaftar: {chat_name} (ID: {chat_id})")
+            log_event("New Group Added", group_id=chat_id, group_name=chat_name, detail="Group ID baru ditambahkan")
 
-# Kirim welcoming message dari message id yang dah ditentuin, diambil dari forwardan channel yang dikirim ke bot
+# Kirim welcoming message dari message id yang ditentukan, diambil dari forwardan channel yang dikirim ke bot
 @bot.message_handler(commands=['welcome'])
 def send_welcome_message(message):
     try:
@@ -117,7 +125,7 @@ def send_welcome_message(message):
     except Exception as e:
         print(f"❌ Gagal mengirim pesan welcome: {e}")
 
-# kirim logs ke sheet "Logs"
+# Kirim logs ke sheet "Logs"
 def log_event(event_type, group_id=None, group_name=None, detail=""):
     try:
         log_sheet = client.open_by_key(SHEET_ID).worksheet("Logs")
