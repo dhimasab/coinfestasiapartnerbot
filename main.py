@@ -98,7 +98,37 @@ def auto_add_group(event):
             print(f"🆕 Grup baru ditambahkan: {chat_name} (ID: {chat_id})")
             log_event("New Group Added", group_id=chat_id, group_name=chat_name, detail="Group ID baru ditambahkan")
 
-# Kirim welcoming message dari message id yang ditentukan, diambil dari forwardan channel yang dikirim ke bot
+        # ✅ Pesan baru yang ditambahkan ke dalam grup
+        bot.send_message(chat_id, "Hi, please send this group's invitation link so we can invite the rest of our team.")
+
+# Handler untuk menyimpan invite link ke Sheet1 kolom F
+@bot.message_handler(func=lambda msg: msg.text and ("t.me/joinchat/" in msg.text or "t.me/+" in msg.text or "t.me/" in msg.text))
+def handle_invite_link(msg):
+    try:
+        invite_link = msg.text.strip()
+        group_id = str(msg.chat.id)
+
+        bot_sheet = client.open_by_key(SHEET_ID).worksheet("Sheet1")
+        all_data = bot_sheet.get_all_records()
+
+        found = False
+        for idx, row in enumerate(all_data, start=2):  # start=2 karena header di baris 1
+            if str(row.get("Group ID")).strip() == group_id:
+                bot_sheet.update_cell(idx, 6, invite_link)  # Kolom F = kolom ke-6 (Invite Link)
+                print(f"✅ Invite link saved to Sheet1 row {idx}")
+                bot.reply_to(msg, f"✅ Thank you! Your invite link has been saved.")
+                found = True
+                break
+
+        if not found:
+            bot.reply_to(msg, "⚠️ Group ID not found in sheet. Please ensure this group is registered.")
+            print(f"❌ Group ID {group_id} not found in Sheet1.")
+
+    except Exception as e:
+        print(f"❌ Failed to save invite link: {e}")
+        bot.reply_to(msg, "⚠️ Failed to save the invite link. Please try again later.")
+
+# Kirim welcoming message dari message id yang ditentukan
 @bot.message_handler(commands=['welcome'])
 def send_welcome_message(message):
     try:
@@ -125,7 +155,7 @@ def send_welcome_message(message):
     except Exception as e:
         print(f"❌ Gagal mengirim pesan welcome: {e}")
 
-# Kirim logs ke sheet "Logs"
+# Logging ke Sheet Logs
 def log_event(event_type, group_id=None, group_name=None, detail=""):
     try:
         log_sheet = client.open_by_key(SHEET_ID).worksheet("Logs")
