@@ -26,7 +26,8 @@ with open(creds_path, "w") as f:
 scope = ["https://spreadsheets.google.com/feeds", "https://www.googleapis.com/auth/drive"]
 creds = ServiceAccountCredentials.from_json_keyfile_name(creds_path, scope)
 client = gspread.authorize(creds)
-sheet = client.open_by_key(SHEET_ID).sheet1
+sheet = client.open_by_key(SHEET_ID).worksheet("Sheet1")
+print(f"📄 Sheet aktif: {sheet.title}")
 
 bot = telebot.TeleBot(BOT_TOKEN)
 
@@ -42,11 +43,11 @@ def get_target_groups():
         if row.get("Group ID") and row.get("Status", "").strip().lower() == "aktif"
     ]
 
-# Handler untuk repost dari channel
+# Repost dari channel
 @bot.channel_post_handler(content_types=['text', 'photo', 'video', 'document'])
 def repost_message(message):
     if message.chat.id != SOURCE_CHANNEL_ID:
-        print(f"\U0001F6AB Channel tidak diizinkan: {message.chat.id}")
+        print(f"⛔ Channel tidak diizinkan: {message.chat.id}")
         return
 
     groups = get_target_groups()
@@ -63,15 +64,15 @@ def repost_message(message):
             elif message.content_type == 'document':
                 bot.send_document(group_id, message.document.file_id, caption=message.caption, caption_entities=message.caption_entities)
 
-            print(f"\u2705 Berhasil kirim ke {group_id} ({message.content_type})")
+            print(f"✅ Berhasil kirim ke {group_id} ({message.content_type})")
 
             if mention:
                 bot.send_message(group_id, mention)
-                print(f"\U0001F4AC Mention terkirim ke {group_id}: {mention}")
+                print(f"💬 Mention terkirim ke {group_id}: {mention}")
         except Exception as e:
-            print(f"\u274C Gagal kirim ke {group_id}: {e}")
+            print(f"❌ Gagal kirim ke {group_id}: {e}")
 
-# Saat bot ditambahkan ke grup
+# Handler untuk bot ditambahkan ke grup
 @bot.my_chat_member_handler()
 def auto_add_group(event):
     if event.new_chat_member.status in ['member', 'administrator']:
@@ -86,22 +87,24 @@ def auto_add_group(event):
             if row.get("Group Name", "").strip() == chat_name.strip():
                 sheet.update_cell(idx, 1, str(chat_id))
                 sheet.update_cell(idx, 4, timestamp)
-                print(f"\U0001F501 Group ID diperbarui: {chat_name} (ID baru: {chat_id})")
+                print(f"🔁 Group ID diperbarui: {chat_name} (ID baru: {chat_id})")
                 log_event("Update Group ID", group_id=chat_id, group_name=chat_name, detail="Group ID updated due to name match")
                 updated = True
                 break
 
         if not updated:
-            sheet.append_row([str(chat_id), chat_name, "", timestamp, "Aktif", "", ""])
-            print(f"\U0001F195 Grup baru ditambahkan: {chat_name} (ID: {chat_id})")
+            new_row = [str(chat_id), chat_name, "", timestamp, "Aktif", "", ""]
+            last_row = len(sheet.get_all_values())
+            sheet.insert_row(new_row, last_row + 1)
+            print(f"🆕 Grup baru ditambahkan ke baris {last_row + 1}: {new_row}")
             log_event("New Group Added", group_id=chat_id, group_name=chat_name, detail="Group ID baru ditambahkan")
 
         if str(chat_id).startswith("-100"):
             bot.send_message(chat_id, "Hi, please send this group's invitation link so we can invite the rest of our team.")
         else:
-            print("\u23F3 Skipping invite message: group still uses temporary ID")
+            print("⏳ Skipping invite message: group still uses temporary ID")
 
-# Handler simpan invite link ke kolom F
+# Handler simpan invite link
 @bot.message_handler(func=lambda msg: msg.text and "t.me/" in msg.text)
 def handle_invite_link(msg):
     try:
@@ -115,23 +118,23 @@ def handle_invite_link(msg):
         for idx, row in enumerate(all_data, start=2):
             if str(row.get("Group ID")).strip() == group_id:
                 sheet.update_cell(idx, 6, invite_link)
-                print(f"\u2705 Invite link saved to Sheet1 row {idx}")
-                bot.reply_to(msg, "\u2705 Thank you! Your invite link has been saved.")
+                print(f"✅ Invite link disimpan di baris {idx}: {invite_link}")
+                bot.reply_to(msg, "✅ Thank you! Your invite link has been saved.")
                 return
 
-        bot.reply_to(msg, "\u26A0\uFE0F Group ID not found in sheet. Please ensure this group is registered.")
-        print(f"\u274C Group ID {group_id} not found in Sheet1.")
+        bot.reply_to(msg, "⚠️ Group ID not found in sheet. Please ensure this group is registered.")
+        print(f"❌ Group ID {group_id} tidak ditemukan di Sheet1.")
 
     except Exception as e:
-        print(f"\u274C Failed to save invite link: {e}")
-        bot.reply_to(msg, "\u26A0\uFE0F Failed to save the invite link. Please try again later.")
+        print(f"❌ Gagal menyimpan invite link: {e}")
+        bot.reply_to(msg, "⚠️ Failed to save the invite link. Please try again later.")
 
-# Command /welcome untuk kirim pesan welcome dan centang kolom
+# Command /welcome
 @bot.message_handler(commands=['welcome'])
 def send_welcome_message(message):
     try:
         group_id = message.chat.id
-        print(f"\U0001F680 Mengirim pesan welcome ke grup {group_id}")
+        print(f"🚀 Mengirim pesan welcome ke grup {group_id}")
 
         bot.forward_message(
             chat_id=group_id,
@@ -145,13 +148,13 @@ def send_welcome_message(message):
                 mention = row.get("Mentions", "").strip()
                 if mention:
                     bot.send_message(group_id, mention)
-                    print(f"\u2705 Mention dikirim ke {group_id}: {mention}")
-                sheet.update_cell(idx, 7, "TRUE")  # Kolom G = Welcoming Message
-                print(f"\u2705 Checklist Welcoming Message updated for row {idx}")
+                    print(f"✅ Mention dikirim ke {group_id}: {mention}")
+                sheet.update_cell(idx, 7, "TRUE")  # ✅ Centang kolom G (checkbox)
+                print(f"✅ Kolom checkbox dicentang di baris {idx}")
                 break
 
     except Exception as e:
-        print(f"\u274C Gagal mengirim pesan welcome: {e}")
+        print(f"❌ Gagal kirim welcome message: {e}")
 
 # Logging ke sheet Logs
 def log_event(event_type, group_id=None, group_name=None, detail=""):
@@ -159,10 +162,10 @@ def log_event(event_type, group_id=None, group_name=None, detail=""):
         log_sheet = client.open_by_key(SHEET_ID).worksheet("Logs")
         timestamp = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
         log_sheet.append_row([timestamp, event_type, group_id or "", group_name or "", detail])
-        print(f"\U0001F4DD Logged: {event_type} | {group_id} | {detail}")
+        print(f"📝 Logged: {event_type} | {group_id} | {detail}")
     except Exception as e:
-        print(f"\u274C Gagal logging: {e}")
+        print(f"❌ Gagal logging: {e}")
 
-# Start bot
-print("\U0001F916 Bot aktif... Menunggu pesan dari channel yang diizinkan...")
+# Start polling
+print("🤖 Bot aktif... Menunggu pesan dari channel yang diizinkan...")
 bot.infinity_polling()
