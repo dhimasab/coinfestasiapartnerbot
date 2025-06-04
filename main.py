@@ -31,6 +31,14 @@ print(f"📄 Sheet aktif: {sheet.title}")
 
 bot = telebot.TeleBot(BOT_TOKEN)
 
+# Fungsi bantu: cari baris kosong berikutnya berdasarkan kolom A
+def find_next_empty_row_in_column(sheet, col=1):
+    col_values = sheet.col_values(col)
+    for i in range(len(col_values), 0, -1):
+        if col_values[i - 1].strip():
+            return i + 1
+    return 2  # fallback jika semua kosong
+
 # Ambil grup aktif dari Sheet
 def get_target_groups():
     records = sheet.get_all_records()
@@ -72,7 +80,7 @@ def repost_message(message):
         except Exception as e:
             print(f"❌ Gagal kirim ke {group_id}: {e}")
 
-# Handler untuk bot ditambahkan ke grup
+# Saat bot ditambahkan ke grup
 @bot.my_chat_member_handler()
 def auto_add_group(event):
     if event.new_chat_member.status in ['member', 'administrator']:
@@ -94,9 +102,9 @@ def auto_add_group(event):
 
         if not updated:
             new_row = [str(chat_id), chat_name, "", timestamp, "Aktif", "", ""]
-            last_row = len(sheet.get_all_values())
-            sheet.insert_row(new_row, last_row + 1)
-            print(f"🆕 Grup baru ditambahkan ke baris {last_row + 1}: {new_row}")
+            target_row = find_next_empty_row_in_column(sheet, col=1)
+            sheet.insert_row(new_row, target_row)
+            print(f"🆕 Grup baru ditambahkan ke baris {target_row}: {new_row}")
             log_event("New Group Added", group_id=chat_id, group_name=chat_name, detail="Group ID baru ditambahkan")
 
         if str(chat_id).startswith("-100"):
@@ -149,7 +157,7 @@ def send_welcome_message(message):
                 if mention:
                     bot.send_message(group_id, mention)
                     print(f"✅ Mention dikirim ke {group_id}: {mention}")
-                sheet.update_cell(idx, 7, "TRUE")  # ✅ Centang kolom G (checkbox)
+                sheet.update_cell(idx, 7, "TRUE")  # ✅ Centang kolom G
                 print(f"✅ Kolom checkbox dicentang di baris {idx}")
                 break
 
